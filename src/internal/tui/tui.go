@@ -13,12 +13,15 @@ import (
 )
 
 type App struct {
-	tviewApp *tview.Application
-	table    *tview.Table
-	infoBox  *tview.TextView
-	manager  *core.SystemdManager
-	services []core.ServiceUnit
-	filter   string
+	tviewApp    *tview.Application
+	table       *tview.Table
+	infoBox     *tview.TextView
+	searchField *tview.InputField
+	manager     *core.SystemdManager
+	services    []core.ServiceUnit
+	filter      string
+	searchMode  bool
+	privileged  bool
 }
 
 func Run(systemMode bool) error {
@@ -30,10 +33,12 @@ func Run(systemMode bool) error {
 	// We should close it on exit.
 
 	app := &App{
-		tviewApp: tview.NewApplication(),
-		table:    tview.NewTable(),
-		infoBox:  tview.NewTextView(),
-		manager:  manager,
+		tviewApp:    tview.NewApplication(),
+		table:       tview.NewTable(),
+		infoBox:     tview.NewTextView(),
+		searchField: tview.NewInputField(),
+		manager:     manager,
+		privileged:  systemMode,
 	}
 
 	return app.run()
@@ -84,41 +89,84 @@ func (a *App) layout() tview.Primitive {
 		SetText("[yellow]s[white]tart [yellow]x[white]stop [yellow]r[white]estart [yellow]l[white]ogs [yellow]/[white]filter [yellow]q[white]uit")
 	footer.SetBackgroundColor(tcell.ColorDarkGray)
 
+	// Search Field Configuration
+	a.searchField.SetLabel("/")
+	a.searchField.SetFieldTextColor(tcell.ColorYellow)
+	a.searchField.SetLabelColor(tcell.ColorOrange)
+
+	a.searchField.SetChangedFunc(func(text string) {
+		a.filter = text
+		a.refreshServices()
+	})
+
+	a.searchField.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEnter {
+			a.searchMode = false
+			a.tviewApp.SetRoot(a.layout(), true)
+			a.tviewApp.SetFocus(a.table)
+		} else if key == tcell.KeyEscape {
+			a.searchMode = false
+			a.filter = ""
+			a.searchField.SetText("")
+			a.refreshServices()
+			a.tviewApp.SetRoot(a.layout(), true)
+			a.tviewApp.SetFocus(a.table)
+		}
+	})
+
 	// Main Flex Layout
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 1, 1, false).
-		AddItem(a.table, 0, 1, true).
-		AddItem(footer, 1, 1, false)
+		AddItem(a.table, 0, 1, true)
+
+	if a.searchMode {
+		flex.AddItem(a.searchField, 1, 1, true)
+	} else {
+		flex.AddItem(footer, 1, 1, false)
+	}
 
 	// Keybindings for table
 	a.table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		row, _ := a.table.GetSelection()
-		if row <= 0 || row >= a.table.GetRowCount() {
-			return event
-		}
+		// If we are in search mode, ignore table keys (though focus should be on input field anyway)
+		// But if user clicks back to table, we might want to allow keys.
 
-		// Context is the service name stored in the first cell
-		cell := a.table.GetCell(row, 0)
-		serviceName := cell.Text
+		row, _ := a.table.GetSelection()
+		// Allow navigation even if no selection initially, but actions need selection
+		// Determine service name only if valid row
+		serviceName := ""
+		if row > 0 && row < a.table.GetRowCount() {
+			cell := a.table.GetCell(row, 0)
+			serviceName = cell.Text
+		}
 
 		switch event.Rune() {
 		case 's':
-			a.performAction("Starting", serviceName, a.manager.StartService)
+			if serviceName != "" {
+				a.performAction("Starting", serviceName, a.manager.StartService)
+			}
 		case 'x':
-			a.performAction("Stopping", serviceName, a.manager.StopService)
+			if serviceName != "" {
+				a.performAction("Stopping", serviceName, a.manager.StopService)
+			}
 		case 'r':
-			a.performAction("Restarting", serviceName, a.manager.RestartService)
+			if serviceName != "" {
+				a.performAction("Restarting", serviceName, a.manager.RestartService)
+			}
 		case 'l':
-			a.showLogs(serviceName)
+			if serviceName != "" {
+				a.showLogs(serviceName)
+			}
 		case '/':
-			// Filter implementation placeholder
-			// In a real k9s-like app, this opens an input field
+			a.searchMode = true
+			a.tviewApp.SetRoot(a.layout(), true)
+			a.tviewApp.SetFocus(a.searchField)
+			return nil // Consume key
 		case 'q':
 			a.tviewApp.Stop()
 		}
 
 		// Also handle Enter for logs
-		if event.Key() == tcell.KeyEnter {
+		if event.Key() == tcell.KeyEnter && serviceName != "" {
 			a.showLogs(serviceName)
 		}
 
@@ -250,8 +298,14 @@ func (a *App) showLogs(name string) {
 	// Initial Load
 	go func() {
 		// Run journalctl -n 200
-		// Using exec.Command
-		cmd := exec.Command("journalctl", "--user", "-u", name, "-n", "200", "--no-pager")
+		var cmdArgs []string
+		if a.privileged {
+			cmdArgs = []string{"-u", name, "-n", "200", "--no-pager"}
+		} else {
+			cmdArgs = []string{"--user", "-u", name, "-n", "200", "--no-pager"}
+		}
+
+		cmd := exec.Command("journalctl", cmdArgs...)
 		out, err := cmd.CombinedOutput()
 
 		a.tviewApp.QueueUpdateDraw(func() {

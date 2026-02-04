@@ -67,8 +67,16 @@ var logsCmd = &cobra.Command{
 			name = name + ".service"
 		}
 
-		// Run journalctl --user -u <service> -n 50 --no-pager
-		c := exec.Command("journalctl", "--user", "-u", name, "-n", "50", "--no-pager")
+		// Run journalctl -u <service> -n 50 --no-pager
+		// If Privileged, run system journalctl (sudo usually required for reading system logs depending on config, but command is same structure minus --user)
+		var cmdArgs []string
+		if Privileged {
+			cmdArgs = []string{"-u", name, "-n", "50", "--no-pager"}
+		} else {
+			cmdArgs = []string{"--user", "-u", name, "-n", "50", "--no-pager"}
+		}
+
+		c := exec.Command("journalctl", cmdArgs...)
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		if err := c.Run(); err != nil {
