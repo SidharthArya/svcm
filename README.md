@@ -1,4 +1,6 @@
 # svcm (Service Manager)
+[AUR Version](https://img.shields.io/aur/version/svcm)
+
 
 **svcm** is a lightweight systemd service manager for Wayland, written in Go. It offers a unified experience across multiple interfaces:
 - **CLI**: Standard terminal commands.
