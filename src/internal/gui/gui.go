@@ -11,10 +11,10 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"lsysctl/internal/core"
+	"svcm/src/internal/core"
 )
 
-func Run() {
+func Run(systemMode bool) {
 	a := app.NewWithID("com.arya.lsysctl")
 	w := a.NewWindow("lsysctl - Service Manager")
 
@@ -27,7 +27,7 @@ func Run() {
 	}
 
 	// Service Manager Connection
-	manager, err := core.NewSystemdManager()
+	manager, err := core.NewSystemdManager(systemMode)
 	if err != nil {
 		w.SetContent(widget.NewLabel("Failed to connect to systemd: " + err.Error()))
 		w.ShowAndRun()

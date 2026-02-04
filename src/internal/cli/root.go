@@ -8,10 +8,12 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "lsysctl",
-	Short: "lsysctl manages systemd services for the user",
+	Use:   "svcm",
+	Short: "svcm manages systemd services for the user",
 	Long:  `A lightweight systemd service manager for Wayland with CLI, GUI, and MCP interfaces.`,
 }
+
+var Privileged bool
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
@@ -21,5 +23,5 @@ func Execute() {
 }
 
 func init() {
-	// Global flags can be defined here
+	rootCmd.PersistentFlags().BoolVarP(&Privileged, "privileged", "P", false, "Use system bus instead of user bus (requires sudo/policykit)")
 }

@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"lsysctl/internal/core"
 	"os"
+	"svcm/src/internal/core"
 )
 
 // Minimal JSON-RPC 2.0 types for MCP
@@ -109,7 +109,7 @@ func handleRequest(data []byte) {
 		}
 		json.Unmarshal(req.Params, &params)
 
-		manager, e := core.NewSystemdManager()
+		manager, e := core.NewSystemdManager(false)
 		if e != nil {
 			err = &JSONRPCError{Code: -32000, Message: e.Error()}
 			break

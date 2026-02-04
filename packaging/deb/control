@@ -1,0 +1,9 @@
+Package: svcm
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Sidharth Arya <code@sidhartharya.com>
+Description: Lightweight systemd service manager for Wayland
+ svcm is a unified service manager with CLI, TUI (k9s-style), GUI (Tray), and MCP interfaces.
+ It allows managing both user and system services (via --privileged).

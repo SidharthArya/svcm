@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/coreos/go-systemd/v22/dbus"
 )
@@ -11,10 +12,18 @@ type SystemdManager struct {
 	conn *dbus.Conn
 }
 
-func NewSystemdManager() (*SystemdManager, error) {
-	conn, err := dbus.NewUserConnectionContext(context.Background())
+func NewSystemdManager(systemMode bool) (*SystemdManager, error) {
+	var conn *dbus.Conn
+	var err error
+
+	if systemMode {
+		conn, err = dbus.NewSystemConnectionContext(context.Background())
+	} else {
+		conn, err = dbus.NewUserConnectionContext(context.Background())
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to systemd user bus: %w", err)
+		return nil, fmt.Errorf("failed to connect to systemd bus (system=%v): %w", systemMode, err)
 	}
 	return &SystemdManager{conn: conn}, nil
 }
@@ -44,7 +53,15 @@ func (m *SystemdManager) ListServices() ([]ServiceUnit, error) {
 	return services, nil
 }
 
+func ensureServiceSuffix(name string) string {
+	if !strings.HasSuffix(name, ".service") {
+		return name + ".service"
+	}
+	return name
+}
+
 func (m *SystemdManager) StartService(name string) error {
+	name = ensureServiceSuffix(name)
 	// Mode "replace" is standard
 	ch := make(chan string)
 	_, err := m.conn.StartUnitContext(context.Background(), name, "replace", ch)
@@ -59,6 +76,7 @@ func (m *SystemdManager) StartService(name string) error {
 }
 
 func (m *SystemdManager) StopService(name string) error {
+	name = ensureServiceSuffix(name)
 	ch := make(chan string)
 	_, err := m.conn.StopUnitContext(context.Background(), name, "replace", ch)
 	if err != nil {
@@ -72,6 +90,7 @@ func (m *SystemdManager) StopService(name string) error {
 }
 
 func (m *SystemdManager) RestartService(name string) error {
+	name = ensureServiceSuffix(name)
 	ch := make(chan string)
 	_, err := m.conn.RestartUnitContext(context.Background(), name, "replace", ch)
 	if err != nil {
@@ -82,4 +101,49 @@ func (m *SystemdManager) RestartService(name string) error {
 		return fmt.Errorf("restart job for %s failed with result: %s", name, result)
 	}
 	return nil
+}
+
+func (m *SystemdManager) GetServiceDetails(name string) (*ServiceDetails, error) {
+	name = ensureServiceSuffix(name)
+
+	// Get Unit Properties
+	props, err := m.conn.GetAllPropertiesContext(context.Background(), name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get properties for %s: %w", name, err)
+	}
+
+	// Helper to safely get string/uint types
+	getString := func(k string) string {
+		if v, ok := props[k].(string); ok {
+			return v
+		}
+		return ""
+	}
+	getUint32 := func(k string) uint32 {
+		if v, ok := props[k].(uint32); ok {
+			return v
+		}
+		return 0
+	}
+	getUint64 := func(k string) uint64 {
+		if v, ok := props[k].(uint64); ok {
+			return v
+		}
+		return 0
+	}
+
+	details := &ServiceDetails{
+		ServiceUnit: ServiceUnit{
+			Name:        getString("Id"),
+			Description: getString("Description"),
+			LoadState:   getString("LoadState"),
+			ActiveState: getString("ActiveState"),
+			SubState:    getString("SubState"),
+		},
+		MainPID:                getUint32("MainPID"),
+		FragmentPath:           getString("FragmentPath"),
+		ActiveEnterTimestamp:   getUint64("ActiveEnterTimestamp"),
+		InactiveEnterTimestamp: getUint64("InactiveEnterTimestamp"),
+	}
+	return details, nil
 }

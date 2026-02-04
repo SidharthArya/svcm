@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"lsysctl/internal/mcp"
+	"svcm/src/internal/mcp"
 
 	"github.com/spf13/cobra"
 )
