@@ -72,10 +72,17 @@ func (a *App) run() error {
 
 func (a *App) layout() tview.Primitive {
 	// Header
+	modeStatus := "User Mode"
+	headerColor := tcell.ColorDarkBlue
+	if a.privileged {
+		modeStatus = "PRIVILEGED / SYSTEM MODE"
+		headerColor = tcell.ColorDarkRed
+	}
+
 	header := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
-		SetText("lsysctl - System Service Manager (k9s-style)")
-	header.SetBackgroundColor(tcell.ColorDarkBlue)
+		SetText(fmt.Sprintf("svcm - %s", modeStatus))
+	header.SetBackgroundColor(headerColor)
 	header.SetTextColor(tcell.ColorWhite)
 
 	// Table styling
@@ -86,7 +93,7 @@ func (a *App) layout() tview.Primitive {
 	// Footer/Help
 	footer := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[yellow]s[white]tart [yellow]x[white]stop [yellow]r[white]estart [yellow]l[white]ogs [yellow]/[white]filter [yellow]q[white]uit")
+		SetText("[yellow]s[white]tart [yellow]x[white]stop [yellow]r[white]estart [yellow]l[white]ogs [yellow]/[white]filter [yellow]P[white]riv-toggle [yellow]q[white]uit")
 	footer.SetBackgroundColor(tcell.ColorDarkGray)
 
 	// Search Field Configuration
@@ -161,6 +168,8 @@ func (a *App) layout() tview.Primitive {
 			a.tviewApp.SetRoot(a.layout(), true)
 			a.tviewApp.SetFocus(a.searchField)
 			return nil // Consume key
+		case 'P':
+			a.togglePrivileged()
 		case 'q':
 			a.tviewApp.Stop()
 		}
@@ -174,6 +183,30 @@ func (a *App) layout() tview.Primitive {
 	})
 
 	return flex
+}
+
+func (a *App) togglePrivileged() {
+	newPriv := !a.privileged
+	newManager, err := core.NewSystemdManager(newPriv)
+
+	if err != nil {
+		modal := tview.NewModal().
+			SetText(fmt.Sprintf("Failed to switch mode: %v\n(Do you have sudo/rights?)", err)).
+			AddButtons([]string{"OK"}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				a.tviewApp.SetRoot(a.layout(), true)
+			})
+		a.tviewApp.SetRoot(modal, false)
+		return
+	}
+
+	a.manager.Close()
+	a.manager = newManager
+	a.privileged = newPriv
+	a.filter = "" // Clear filter on switch to avoid confusion? Or keep it? Let's clear to be safe/fresh.
+
+	a.tviewApp.SetRoot(a.layout(), true)
+	a.refreshServices()
 }
 
 func (a *App) refreshServices() {
