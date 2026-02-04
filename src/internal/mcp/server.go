@@ -109,7 +109,7 @@ func handleRequest(data []byte) {
 		}
 		json.Unmarshal(req.Params, &params)
 
-		manager, e := core.NewSystemdManager(false)
+		manager, e := core.NewServiceManager(false)
 		if e != nil {
 			err = &JSONRPCError{Code: -32000, Message: e.Error()}
 			break

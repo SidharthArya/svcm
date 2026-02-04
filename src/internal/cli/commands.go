@@ -22,7 +22,7 @@ var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all user services",
 	Run: func(cmd *cobra.Command, args []string) {
-		manager, err := core.NewSystemdManager(Privileged)
+		manager, err := core.NewServiceManager(Privileged)
 		if err != nil {
 			log.Fatalf("Failed to connect to systemd: %v", err)
 		}
@@ -47,7 +47,7 @@ var startCmd = &cobra.Command{
 	Short: "Start a service",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		manager, err := core.NewSystemdManager(Privileged)
+		manager, err := core.NewServiceManager(Privileged)
 		if err != nil {
 			log.Fatalf("Failed to connect to systemd: %v", err)
 		}
@@ -66,7 +66,7 @@ var stopCmd = &cobra.Command{
 	Short: "Stop a service",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		manager, err := core.NewSystemdManager(Privileged)
+		manager, err := core.NewServiceManager(Privileged)
 		if err != nil {
 			log.Fatalf("Failed to connect to systemd: %v", err)
 		}
@@ -85,7 +85,7 @@ var restartCmd = &cobra.Command{
 	Short: "Restart a service",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		manager, err := core.NewSystemdManager(Privileged)
+		manager, err := core.NewServiceManager(Privileged)
 		if err != nil {
 			log.Fatalf("Failed to connect to systemd: %v", err)
 		}

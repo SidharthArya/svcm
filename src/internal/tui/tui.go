@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -17,7 +16,7 @@ type App struct {
 	table       *tview.Table
 	infoBox     *tview.TextView
 	searchField *tview.InputField
-	manager     *core.SystemdManager
+	manager     core.ServiceManager
 	services    []core.ServiceUnit
 	filter      string
 	searchMode  bool
@@ -25,7 +24,7 @@ type App struct {
 }
 
 func Run(systemMode bool) error {
-	manager, err := core.NewSystemdManager(systemMode)
+	manager, err := core.NewServiceManager(systemMode)
 	if err != nil {
 		return err
 	}
@@ -187,7 +186,7 @@ func (a *App) layout() tview.Primitive {
 
 func (a *App) togglePrivileged() {
 	newPriv := !a.privileged
-	newManager, err := core.NewSystemdManager(newPriv)
+	newManager, err := core.NewServiceManager(newPriv)
 
 	if err != nil {
 		modal := tview.NewModal().
@@ -330,22 +329,14 @@ func (a *App) showLogs(name string) {
 
 	// Initial Load
 	go func() {
-		// Run journalctl -n 200
-		var cmdArgs []string
-		if a.privileged {
-			cmdArgs = []string{"-u", name, "-n", "200", "--no-pager"}
-		} else {
-			cmdArgs = []string{"--user", "-u", name, "-n", "200", "--no-pager"}
-		}
-
-		cmd := exec.Command("journalctl", cmdArgs...)
-		out, err := cmd.CombinedOutput()
+		// Run journalctl -n 200 via interface
+		logs, err := a.manager.GetLogs(name, 200)
 
 		a.tviewApp.QueueUpdateDraw(func() {
 			if err != nil {
 				textView.SetText(fmt.Sprintf("Error fetching logs: %v", err))
 			} else {
-				textView.SetText(string(out))
+				textView.SetText(logs)
 				textView.ScrollToEnd()
 			}
 		})

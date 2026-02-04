@@ -27,7 +27,7 @@ func Run(systemMode bool) {
 	}
 
 	// Service Manager Connection
-	manager, err := core.NewSystemdManager(systemMode)
+	manager, err := core.NewServiceManager(systemMode)
 	if err != nil {
 		w.SetContent(widget.NewLabel("Failed to connect to systemd: " + err.Error()))
 		w.ShowAndRun()
